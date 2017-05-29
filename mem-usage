@@ -1,0 +1,85 @@
+#!/bin/bash -eu
+
+readonly PROG_NAME="$0"
+
+function validate_args() {
+	if [ "$#" = 0 ] ; then
+		echo "No arguments supplied!."
+		show_usage
+
+		exit 1
+	fi
+}
+
+function show_usage() {
+	echo "Supply the process name(s), for which you want to display the memory usage, as arguments."
+	echo "E.g. '$PROG_NAME nano vim' will display the memory used for those two processes."
+}
+
+function show_explanation() {
+	cat << _EOF_
+	From man ps
+	pid 		:	a number representing the process ID
+	pmem 		:	ratio of the process\'s resident set size to the physical memory on the machine, expressed as a percentage.
+	rss 		:	resident set size, the non-swapped physical memory that a task has used (in kiloBytes).
+	vsz 		:	virtual memory size of the process in KiB (1024-byte units).
+	sz 			:	size in physical pages of the core image of the process. This includes text, data, and stack space.
+	drs 		:	data resident set size, the amount of physical memory devoted to other than executable code.
+	trs 		:	text resident set size, the amount of physical memory devoted to executable code.
+	comm 		:	command name (only the executable name)
+	command 	:	command with all its arguments as a string.
+_EOF_
+
+	# Insert new line.
+	echo
+}
+
+function get_process_info() {
+	# Execute ps to get the necessary information.
+	# Match first line (column header) and commands that contain the first argument.
+	# Ignore the process that's running this script.
+	# Ignore the process that's running the first grep command.
+	ps -eo pid,pmem,rss,vsz,sz,drs,trs,comm,command \
+		| grep -e "PID" -e "$1" \
+		| grep -v "$PROG_NAME" \
+		| grep -Ev "grep.*$1"
+}
+
+function contains_process_info() {
+	# Check if process info contains actual data or is just the column headers.
+	# If data is found exit status is 0. Otherwise 1.
+	echo "$1" | grep --quiet -v "PID"
+}
+
+function show_process_info() {
+	if [ "$#" != 1 ]; then
+		echo "Exactly 1 argument required for show_process_info()!"
+		exit 1
+	fi
+
+	local info
+	info="$(get_process_info $1)"
+
+	if contains_process_info "$info"; then
+		echo "$info"
+
+		return 0
+	fi
+
+	echo "No matching process."
+}
+
+function main() {
+	validate_args $*
+	show_explanation
+
+	for i in "$@"; do
+		echo "-----------------------------"
+		echo "=> Showing memory info for $i"
+		echo "-----------------------------"
+		show_process_info "$i"
+		echo ""
+	done
+}
+
+main $*

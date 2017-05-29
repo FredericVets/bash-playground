@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# Exit immediately if a command exits with a non-zero status. No necessary when TRAP ERR is used.
+# subshells perform unset set -e (see below, inherit_errexit)
+# Same as set -o errexit.
+# set -e
+
+# If set, command substitution inherits the value of the errexit option, instead of unsetting it in the 
+# subshell environment.
+# Note that set -e is not unset for commands that are run asynchronously, for example with process substitution.
+# In process substitution, the exit code is discarded as it is not visible from the main script.
+# shopt -s inherit_errexit
+
+# If set, any trap on ERR is inherited by shell functions, command substitutions, and commands executed 
+# in a subshell environment. The ERR trap is normally not inherited in such cases.
+# Same as set -o errtrace.
+set -E
+
+# Treat unset variables and parameters other than the special parameters "@" and "*" as an error when 
+# performing parameter expansion.
+# If expansion is attempted on an unset variable or parameter, the shell prints
+# an error message, and, if not interactive, exits with a non-zero status.
+# Same as set -o nounset.
+set -u
+
+# The return value of a pipeline is the status of the last command to exit with a non-zero status,
+# or zero if no command exited with a non-zero status.
+set -o pipefail
+
+# When using Process substitution : the exit code is discarded as it is not visible from the main script.
+
+readonly PROG_NAME="$(basename "$0")"
+
+# params :
+#	$1	:	Required. Linenumber at which error occurred (contained in shell variable $LINENO.
+#	$2	:	Optional. Error message to display.
+function error_exit() {
+	[[ "$#" -ge 1 && -n "$1" ]] || error_exit "$LINENO" "Linenumber not set."
+	[[ "$1" != *[!0-9]* ]] || error_exit "$LINENO" "Linenumber not numeric."
+
+	echo "$PROG_NAME: ${2:-'Unknown error'} at line $1." >&2
+
+	# If a error_exit_hook function is defined, execute it.
+	type -t "error_exit_hook" && error_exit_hook
+
+	exit 1
+}
+
+# A SIGNAL_SPEC of ERR means to execute ARG each time a command's failure would cause the
+# shell to exit when the -e option is enabled.
+# Single quotes are required to prevent bash from expanding $LINENO when it parses this line.
+trap 'error_exit $LINENO' ERR

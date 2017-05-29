@@ -1,0 +1,53 @@
+#!/bin/bash -eu
+
+# This script will KEEP the N most recent archives, and DELETE THE REST.
+# N can be supplied as an argument, if not it will default to DEFAULT_NUMBER_OF_ARCHIVES_TO_KEEP.
+
+# Remove filename from BASH_SOURCE 's first element.'
+cd "${BASH_SOURCE[0]%/*}" || { echo "Could not change directory to script location."; exit 1; }
+
+source "../lib/liberror_exit"
+source "backup-shared"
+
+readonly DEFAULT_NUMBER_OF_ARCHIVES_TO_KEEP=10
+
+function get_archives_to_be_removed() {
+	# Archive file names contain timestamp.
+	# Sort by default order to sort from old to new.
+	# Return the "$1" oldest ones
+	# head
+	# -n, --lines=[-]NUM
+	#		With the leading '-', print all but the last NUM lines of each file
+	[[ "$#" -eq 0 ]] && error_exit "$LINENO" "numeric parameter expected."
+
+	find "$TARGET_DIR" -type f -iname "${TARGET_FILE_NAME_PREFIX}*" -print0 \
+		| sort --zero-terminated \
+		| head --zero-terminated -n "-$1"
+}
+
+function validate_argument() {
+	# If not specified, the default value should be used.
+	[[ "$#" -eq 0 ]] && return
+
+	if [[ "$1" = *[!0-9]* || "$1" -le 0 ]]; then
+		error_exit "$LINENO" "Argument should be numeric and > 0."
+	fi
+}
+
+function main() {
+	validate_argument "$@"
+
+	local number_of_archives_to_keep
+	if [[ "$#" -eq 0 ]]; then
+		number_of_archives_to_keep="$DEFAULT_NUMBER_OF_ARCHIVES_TO_KEEP"
+	else
+		number_of_archives_to_keep="$1"
+	fi
+
+	while read -r -d '' archive; do
+		echo "Removing $archive"
+		rm "$archive"
+	done < <(get_archives_to_be_removed "$number_of_archives_to_keep")
+}
+
+main "$@"

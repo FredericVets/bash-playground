@@ -1,0 +1,6 @@
+#!/bin/bash
+GZIP='--rsyncable' tar -czvf "bla.tar.gz" --sparse --verbatim-files-from --exclude-from=config-files-to-exclude.config --exclude="bla.tar.*" --exclude="output_*.txt" --ignore-case --exclude=*cache* --no-ignore-case --files-from=config-files-to-include.config --files-from=directories-to-backup.config > output_gz.txt
+
+tar -cjvf "bla.tar.bz2" --sparse --verbatim-files-from --exclude-from=config-files-to-exclude.config --exclude="bla.tar.*" --exclude="output_*.txt" --ignore-case --exclude=*cache* --no-ignore-case --files-from=config-files-to-include.config --files-from=directories-to-backup.config > output_bz2.txt
+
+tar -cJvf "bla.tar.xz" --sparse --verbatim-files-from --exclude-from=config-files-to-exclude.config --exclude="bla.tar.*" --exclude="output_*.txt" --ignore-case --exclude=*cache* --no-ignore-case --files-from=config-files-to-include.config --files-from=directories-to-backup.config > output_xz.txt

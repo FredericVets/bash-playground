@@ -1,0 +1,6 @@
+#!/bin/bash -eu
+for file in *.config
+do
+	sort "$file" > sorted
+	mv sorted "$file"
+done

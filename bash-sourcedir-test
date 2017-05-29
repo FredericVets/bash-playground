@@ -1,0 +1,57 @@
+#!/bin/bash -eu
+
+# Test for presence of the lib dir, using a path relative to the parameter ($1)
+# The absolute path is : /home/frederic/bin/lib/
+# params :
+# $1	:	containing starting path to determine relative path.
+function test_relative_lib_directory() {
+	[[ "$#" -eq 1 && -n "$1" ]] || { echo "Exactly one argument required!"; exit 1; }
+
+	local lib result
+	lib="$1/lib"
+	if [[ -e "$lib/liberror_exit" ]]; then
+		result="ok"
+	else
+		result="NOK"
+	fi
+
+	echo -e "\t relative lib dir : $result"
+}
+
+# params :
+# $1	:	name of variable that contains source path.
+# $2	:	value of source path.
+function show_path_info() {
+	[[ "$#" -eq 2 && -n "$1" && -n "$2" ]] || { echo "Exactly 2 arguments required!"; exit 1;  }
+
+	echo "$1 :"
+	echo -e "\t value : $2"
+}
+
+function test_bash_source() {
+	show_path_info '${BASH_SOURCE[*]}' "${BASH_SOURCE[*]}"
+
+	# Remove filename.
+	test_relative_lib_directory "${BASH_SOURCE[0]%/*}"
+}
+
+function test_dollar_zero() {
+	show_path_info '$0' "$0"
+
+	# Remove filename.
+	test_relative_lib_directory "${0%/*}"
+}
+
+function test_pwd() {
+	show_path_info '$PWD' "$PWD"
+	test_relative_lib_directory "$PWD"
+}
+
+function main() {
+	# When testing with a symlink to this file, the 3 methods fail.
+	test_bash_source
+	test_dollar_zero
+	test_pwd
+}
+
+main

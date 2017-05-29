@@ -1,0 +1,6 @@
+#!/bin/bash
+
+#sleep to make sure compositing is enabled before tilda is started.
+#Otherwise transparency isn't available.
+sleep 5s
+exec /usr/bin/tilda > /dev/null 2>&1

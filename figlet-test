@@ -1,0 +1,85 @@
+#!/bin/bash
+cd "${BASH_SOURCE[0]%/*}" || { echo "Could not change directory to script location."; exit 1; }
+
+# Remove filename from BASH_SOURCE 's first element.'
+source "lib/liberror_exit"
+
+shopt -s extglob
+
+readonly INPUT=("azerty" "Frederic" "0123456789")
+fonts=()
+
+function get_fonts_directory() {
+	local fonts_dir
+	fonts_dir="$(figlet -I2)" || error_exit $LINENO "Fonts directory not specified by figlet."
+	if [[ ! -d "$fonts_dir" ]]; then
+		error_exit "$LINENO" "Directory containing fonts doesn't exist!"
+	fi
+
+	echo "$fonts_dir"
+}
+
+# params :
+# $1	:	Required. Contains path to font files.
+function get_font_files() {
+	[[ "$#" -eq 1 && -n "$1" ]] || error_exit "$LINENO" "Argument is required!"
+
+	find "$1" \
+		-maxdepth 1 \
+		-type f \
+		\( -iname "*.flf" -o -iname "*.tlf" \) \
+		-print0
+}
+
+# This is considered the best general approach, since it covers special filenames. Like the ones containing spaces, newlines ...
+# Subshells from command substitution unset set -e, however (unless inherit_errexit is set with Bash 4.4).
+# Note that set -e is not unset for commands that are run asynchronously, for example with process substitution.
+# Process substitution, the exit code is also discarded as it is not visible from the main script.
+function get_available_fonts() {
+	local fonts_dir
+	fonts_dir="$(get_fonts_directory)"
+
+	while IFS= read -r -d '' font; do
+		# The stuff inside $() represents a subshell, so you are allowed to place un-escaped double quotes inside.
+		font="$(basename "$font")"
+		fonts+=("$font")
+	done < <(get_font_files "$fonts_dir")
+
+	echo "Found ${#fonts[@]} fonts."
+}
+
+	# Alternative implementation.
+	# Also handles non standard filenames correctly since it uses globs to get the filenames.
+	function get_available_fonts2() {
+		local fonts_dir
+		fonts_dir="$(get_fonts_directory)"
+		cd "$fonts_dir"
+
+		# extglob shell option is required for this.
+		for font in @(*.flf|*.tlf); do
+			# The stuff inside $() represents a subshell, so you are allowed to place un-escaped double quotes inside.
+			font="$(basename "$font")"
+	                fonts+=("$font")
+		done
+	}
+
+function main() {
+	get_available_fonts
+
+	for font in "${fonts[@]}"; do
+		font=$(basename "$font")
+		echo "Font : $font"
+
+		for i in "${INPUT[@]}"; do
+			figlet -f "$font" "$i"
+		done
+
+		# Write the name of font without the extension.
+		local font_no_extension
+		font_no_extension=${font%.*}
+		figlet -f "$font" "$font_no_extension"
+		echo
+	done
+}
+
+main

@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# Use this wrapper script so the main script can work with relative paths.
+readonly DIR="/home/frederic/bin/"
+
+cd "$DIR" || { echo "Directory $DIR not found!"; exit 1;  }
+exec "backup/backup-my-stuff-main"

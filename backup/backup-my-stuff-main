@@ -1,0 +1,141 @@
+#!/bin/bash
+
+# Files and directories to backup are specified in separate config files in the same directory as this script :
+#	* directories-to-backup.config
+#	* config-files-to-include.config
+#	* config-files-to-exclude.config
+# They are put in a tarball and moved to the target directory.
+#
+# If no modifications are detected since last backup, no new archive is created in the target location.
+# Detection of modifications is done by comparing the content listing of the new and previous archive (tar -tv or in 
+# GNU style tar --list --verbose).
+# This listing also contains timestamp of last file modification.
+#
+# Create a symlink in /etc/cron.daily to 'backup-my-stuff' to execute this script on a daily basis. (Filename of the 
+# link can not contain a dot.)
+
+source "lib/liberror_exit"
+
+# Contains constants like filename convention and target directory.
+source "backup/backup-shared"
+
+# Interrupt – This signal is sent when someone kills the script by pressing ctrl-c.
+# Terminate – this signal is sent when someone sends the TERM signal using the kill command.
+# Exit – this is a pseudo-signal and is triggered when your script exits, either through reaching the end of the 
+# script, an exit command or by a command failing when usingset -e.
+trap 'remove_temp_archive' INT TERM EXIT
+
+readonly DIRECTORIES_TO_BACKUP="backup/directories-to-backup.config"
+readonly CONFIG_FILES_TO_INCLUDE="backup/config-files-to-include.config"
+readonly CONFIG_FILES_TO_EXCLUDE="backup/config-files-to-exclude.config"
+readonly CACHE_FILE_NAME_PATTERN="*cache*"
+
+# Due to the increased likelihood of security flaws, many operating systems ignore the setuid attribute when applied 
+# to executable shell scripts. As is the case with Linux.
+# So, the real user id is who you really are (the one who owns the process), and the effective user id is what the 
+# operating system looks at to make a decision whether or not you are allowed to do something.
+function check_user_is_root() {
+	[[ "$EUID" -eq 0 ]] || error_exit "$LINENO" "Should be run as root!"
+}
+
+function check_config_files_readable() {
+	[[ -r "$DIRECTORIES_TO_BACKUP" ]] || error_exit "$LINENO" "$DIRECTORIES_TO_BACKUP not readable!"
+	[[ -r "$CONFIG_FILES_TO_INCLUDE" ]] || error_exit "$LINENO" "$CONFIG_FILES_TO_INCLUDE not readable!"
+	[[ -r "$CONFIG_FILES_TO_EXCLUDE" ]] || error_exit "$LINENO" "$CONFIG_FILES_TO_EXCLUDE not readable!"
+}
+
+function create_temp_archive() {
+	tar -czvf "/tmp/$TARGET_FILE_NAME" \
+		--sparse \
+		--verbatim-files-from \
+		--exclude-from="$CONFIG_FILES_TO_EXCLUDE" \
+		--ignore-case \
+		--exclude="*$CACHE_FILE_NAME_PATTERN" \
+		--no-ignore-case \
+		--files-from="$CONFIG_FILES_TO_INCLUDE" \
+		--files-from="$DIRECTORIES_TO_BACKUP"
+
+	# Add backup for browser bookmarks as well?
+	# -> Firefox bookmarks are synced to firefox account.
+	# -> Midori bookmarks are stored in ~/.config/midori/bookmarks.db SQLite database.
+}
+
+function get_most_recent_archive() {
+	# Archive file names contain timestamp.
+	# Sort by default order to sort from old to new.
+	find "$TARGET_DIR" -type f -iname "${TARGET_FILE_NAME_PREFIX}*" -print0 \
+		| sort --zero-terminated \
+		| tail --zero-terminated -n 1
+}
+
+function move_temp_archive_to_destination() {
+	mv "/tmp/$TARGET_FILE_NAME" "$TARGET_DIR/$TARGET_FILE_NAME"
+
+	echo "Moved new temporary archive to $TARGET_DIR/$TARGET_FILE_NAME"
+}
+
+function get_archive_content() {
+	[[ "$#" -eq 1 && -n "$1" ]] || error_exit "$LINENO" "One argument required!"
+
+	tar -tvf "$1" | sort
+}
+
+function compare_archives() {
+	[[ "$#" -eq 2 && -n "$1" && -n "$2" ]] || error_exit "$LINENO" "Two arguments are required for compare!"
+
+	echo "Comparing content of $1 and $2."
+
+	# Check if the content of the two archives are the same (includes a timestamp and size).
+	# Exit code of this function will be the exit code of cmp :
+	# An exit status of 0 means no differences were found, 1 means some
+	# differences were found, and 2 means trouble.
+	# ATTENTION : using Process substitution, the exit code is discarded as it is not visible from the main script.
+	# So if the get_archive_content function fails, cmp will continue.
+	cmp <(get_archive_content "$1") <(get_archive_content "$2")
+}
+
+function remove_temp_archive() {
+	[[ -e "/tmp/$TARGET_FILE_NAME" ]] || exit 0
+
+	rm "/tmp/$TARGET_FILE_NAME"
+	echo "removed /tmp/$TARGET_FILE_NAME"
+}
+
+function main() {
+	check_user_is_root
+	check_config_files_readable
+	create_temp_archive
+
+	local most_recent_archive
+	most_recent_archive="$(get_most_recent_archive)"
+	echo "Most recent archive : $most_recent_archive"
+
+	# When an existing archive has not been found, just copy the new temp archive and exit.
+	if [[ -z "$most_recent_archive" ]]; then
+		echo 'No existing backup has been found.'
+		move_temp_archive_to_destination
+
+		exit 0
+	fi
+
+	# Now an archive already exists, compare content to see if modification has happened.
+	# Use following construct to avoid the execution of the ERR trap.
+	# Capture the exit code and act accordingly.
+	local compare_result
+	compare_archives "$most_recent_archive" "/tmp/$TARGET_FILE_NAME" && compare_result="$?" || compare_result="$?"
+	echo "compare_result : $compare_result"
+
+	case "$compare_result" in
+		0 )	echo 'No modifications detected. No need to create a new backup.'
+			remove_temp_archive
+			;;
+		1 )	echo "Modifications detected."
+			move_temp_archive_to_destination
+			;;
+		2 )	error_exit "$LINENO" "Comparison failed."
+			;;
+		* )
+	esac
+}
+
+main

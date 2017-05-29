@@ -1,0 +1,12 @@
+#!/bin/bash -eu
+function generate {
+	[[ "$#" -eq 1 && -n "$1" ]] || { echo "Required argument : number of lines to generate!"; exit 1;  }
+
+	# urandom : kernel random number generator, non-blocking if no entropy is available. Then fallback to pseudo random number generator.
+	# Remove non alphanumeric characters.
+	# Fold into lines of 32 characters.
+	# Get $1 number of lines.
+	cat /dev/urandom | tr -dc [:alnum:] | fold -w 32 | head -n $1
+}
+
+generate "$@"

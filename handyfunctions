@@ -1,0 +1,35 @@
+#!/bin/bash -eu
+
+# These functions take a list of files as input. (Directory is also a file)
+# You can make use of glob expansion for supplying the list.
+
+# Based on mtime (modification time).
+function get_oldest() {
+	[[ $# -eq 0 ]] && { echo "No argument supplied."; exit 1; }
+
+	local oldest
+	for file in "$@"; do
+		[[ -z "$oldest" ]] || [[ "$file" -ot "$oldest" ]] && oldest="$file"
+	done
+
+	echo "oldest : $oldest"
+}
+
+function list_only_files() {
+	[[ $# -eq 0 ]] && { echo "No argument supplied."; exit 1; }
+
+	for file in "$@"; do
+		[[ -d "$file" ]] || ls -- "$file"
+	done
+}
+
+# You can use the stat command as well. Might be a better solution ;-)
+function show_timestamps() {
+	[[ $# -eq 0 ]] && { echo "No argument supplied."; return 1; }
+
+	for file in "$@"; do
+		echo -e "ctime\t:\t $(ls -lc $file)"
+		echo -e "atime\t:\t $(ls -lu $file)"
+		echo -e "mtime\t:\t $(ls -l $file)"
+	done
+}
