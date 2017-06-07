@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# Remove empty lines.
+# Remove lines starting with /
+ls -1 $(echo $PATH | tr ':' ' ') | grep -v '^$' | grep -v '^/.*' | sort -u
