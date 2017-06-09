@@ -4,4 +4,6 @@
 readonly DIR="/home/frederic/bin/"
 
 cd "$DIR" || { echo "Directory $DIR not found!"; exit 1;  }
+
+# See the comments in backup-my-stuff-main for more info.
 exec "backup/backup-my-stuff-main"
